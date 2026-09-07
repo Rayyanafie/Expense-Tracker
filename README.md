@@ -4,6 +4,16 @@ Telegram bot that logs expenses and answers questions about them. Send a receipt
 
 Built as a set of 4 n8n workflows using Gemini and PostgreSQL. A portfolio project.
 
+## Tech stack
+
+| Layer | What |
+|---|---|
+| n8n (self-hosted) | Orchestration — 4 interlinked workflows, cross-workflow execution |
+| Gemini (googleGemini nodes) | Intent classification, receipt vision extraction, SQL generation, answer formatting |
+| PostgreSQL | `users` + `transactions`; `line_items` as jsonb; index on `(telegram_id, date)` |
+| Telegram Bot API | Trigger, messages, inline-keyboard delete buttons, callback queries |
+| JavaScript (Code nodes) | SQL allow-list guard + user-scoping CTE wrapper |
+
 ## Workflows
 
 | File | Purpose |
@@ -50,7 +60,11 @@ The reply includes a Delete button that is stripped after 3 minutes (Wait node +
 
 Real exchange — the brand/item search inside `line_items` JSON in action:
 
-![Query example — "Berapa total pengeluaran untuk beli bensin?" answered with Rp 1.000.000](assets/query-example.png)
+## Demo
+
+![Receipt photo logged by caption — only the named items are extracted](assets/image-input.png)
+
+![Query example — "Berapa total pengeluaran untuk beli bensin?" answered with Rp 1.000.000](assets/query-input.png)
 
 ## Database
 
