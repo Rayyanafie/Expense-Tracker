@@ -2,6 +2,8 @@
 
 Telegram bot that logs expenses and answers questions about them. Send a receipt photo or a one-line entry like `coffee 35k`, then ask `how much did I spend on food this month?` Each Telegram user only ever sees their own data.
 
+**Try it live:** message [**@Raytestmodel2bot**](https://t.me/Raytestmodel2bot) on Telegram.
+
 Built as a set of 4 n8n workflows using Gemini and PostgreSQL. A portfolio project.
 
 ## Tech stack
