@@ -48,6 +48,10 @@ The reply includes a Delete button that is stripped after 3 minutes (Wait node +
    so the query the model wrote executes against that user's rows only.
 3. **Run Query (Postgres)** → **Format Answer (Gemini)** — results are rephrased in plain language, amounts formatted as Rupiah, empty results explained politely.
 
+Real exchange — the brand/item search inside `line_items` JSON in action:
+
+![Query example — "Berapa total pengeluaran untuk beli bensin?" answered with Rp 1.000.000](assets/query-example.png)
+
 ## Database
 
 `schema.sql` — two tables:
