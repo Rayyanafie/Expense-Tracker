@@ -1,0 +1,691 @@
+{
+  "name": "Tracker Expense",
+  "nodes": [
+    {
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "value": "LT0bhBz0hvAxB0cq",
+          "mode": "list",
+          "cachedResultUrl": "/workflow/LT0bhBz0hvAxB0cq",
+          "cachedResultName": "Sub-Tracker"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {},
+          "matchingColumns": [],
+          "schema": [],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": true
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.3,
+      "position": [
+        1024,
+        176
+      ],
+      "id": "94e3fd8d-9a01-42a8-ba26-ddda9c509568",
+      "name": "Run Sub-Tracker"
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.content.parts[0].text }}",
+                    "rightValue": "TRACK",
+                    "operator": {
+                      "type": "string",
+                      "operation": "contains"
+                    },
+                    "id": "6ce15b7d-d209-43ec-ae1c-39d4c5a20c73"
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "Track"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "id": "ade72d3b-024f-46e1-9da8-1e6db9da3ce5",
+                    "leftValue": "={{ $json.content.parts[0].text }}",
+                    "rightValue": "QUERY",
+                    "operator": {
+                      "type": "string",
+                      "operation": "contains"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "Query"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.4,
+      "position": [
+        128,
+        272
+      ],
+      "id": "6f30b546-9e63-4a0d-a9b3-2214c34a9e45",
+      "name": "Route Intent"
+    },
+    {
+      "parameters": {
+        "modelId": {
+          "__rl": true,
+          "value": "models/gemini-3.1-flash-lite",
+          "mode": "list",
+          "cachedResultName": "models/gemini-3.1-flash-lite"
+        },
+        "messages": {
+          "values": [
+            {
+              "content": "=You are an intent classifier for a Telegram expense tracking bot. Classify the incoming message into exactly one of these categories:\n1. TRACK_RECEIPT (User sent a photo of a receipt or bill)\n2. QUERY_EXPENSES (User asking about spending, history, totals, or analytics)\n3. CHAT (General conversation, greetings, help)\n\nReturn ONLY the classification keyword (TRACK_RECEIPT, QUERY_EXPENSES, or CHAT).\n\nPayload to classify:\nHas Photo Attached: {{ $json.message.photo ? 'YES' : 'NO' }}\nText/Caption: {{ $json.message.text || $json.message.caption || 'NO TEXT' }}"
+            }
+          ]
+        },
+        "builtInTools": {},
+        "options": {
+          "temperature": 0
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.googleGemini",
+      "typeVersion": 1.2,
+      "position": [
+        -224,
+        272
+      ],
+      "id": "ee835236-9afc-4138-8609-347553eb83a5",
+      "name": "Classify Intent (Gemini)",
+      "retryOnFail": true,
+      "waitBetweenTries": 5000,
+      "credentials": {
+        "googlePalmApi": {
+          "id": "",
+          "name": "Google Gemini(PaLM) Api account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "updates": [
+          "message",
+          "callback_query"
+        ],
+        "additionalFields": {
+          "download": true
+        }
+      },
+      "type": "n8n-nodes-base.telegramTrigger",
+      "typeVersion": 1.5,
+      "position": [
+        -672,
+        -16
+      ],
+      "id": "7480ae77-8a55-4860-ad40-c4cb3a59558a",
+      "name": "Telegram Inbound",
+      "credentials": {
+        "telegramApi": {
+          "id": "",
+          "name": "Tracker Expense"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "08abf0e9-ff37-42d5-9185-015281d617ac",
+              "name": "data",
+              "value": "={{ $('Telegram Inbound').item.binary.data }}",
+              "type": "binary"
+            },
+            {
+              "id": "9f12aa7d-dc2d-4d76-9feb-478c824d102e",
+              "name": "message",
+              "value": "={{ $('Telegram Inbound').item.json.message }}",
+              "type": "object"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.5,
+      "position": [
+        800,
+        80
+      ],
+      "id": "be678805-8b8c-4c15-8319-fad35d8f6976",
+      "name": "Prepare Receipt Data"
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.message.text }}",
+                    "rightValue": "/start",
+                    "operator": {
+                      "type": "string",
+                      "operation": "startsWith"
+                    },
+                    "id": "77539eb9-a729-4614-a1ad-11e6ff8cb095"
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "Start"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "id": "a68f43a0-7a3b-428c-b8a6-81eb794c7dbc",
+                    "leftValue": "={{ $json.callback_query.message.reply_markup.inline_keyboard[0][0].callback_data }}",
+                    "rightValue": "delete",
+                    "operator": {
+                      "type": "string",
+                      "operation": "contains"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              }
+            }
+          ]
+        },
+        "options": {
+          "fallbackOutput": "extra"
+        }
+      },
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.4,
+      "position": [
+        -448,
+        -32
+      ],
+      "id": "393f3dc3-4cb6-4d48-b9bb-7d144f16c999",
+      "name": "Route Callback & Commands"
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $('Telegram Inbound').item.json.message.chat.id }}",
+        "text": "=👋 Welcome to the Finance Tracker Bot!\n\nI can help you log receipts and track your daily spending. Just send me a photo of a receipt or type a quick expense (e.g., 'Coffee 35k').\n\n⚠️ Important Privacy Notice:\nThis is a personal portfolio project hosted on a private home lab. While I do my best to keep things secure, and your data will never be shared, please do not upload real banking credentials, highly sensitive financial documents, or personal identification. Feel free to use mock data or blur sensitive parts of your receipts!\n\nNote: As an experimental project, there is no guarantee of 100% uptime or permanent data retention. Please do not use this as your sole financial record.",
+        "additionalFields": {
+          "appendAttribution": false
+        }
+      },
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        -160,
+        -208
+      ],
+      "id": "c1ff0c52-4161-4a03-b30a-3d8690a79488",
+      "name": "Send Welcome",
+      "executeOnce": true,
+      "credentials": {
+        "telegramApi": {
+          "id": "",
+          "name": "Tracker Expense"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "DELETE FROM transactions \nWHERE id = {{ $('Telegram Inbound').item.json.callback_query.data.replace('delete_', '') }}\n  AND telegram_id = {{ $('Telegram Inbound').item.json.callback_query.from.id }}\nRETURNING id, merchant, total_amount, category, date;",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.7,
+      "position": [
+        -160,
+        -16
+      ],
+      "id": "c28fb846-1432-4960-af80-803a3242d0a5",
+      "name": "Delete Transaction (SQL)",
+      "credentials": {
+        "postgres": {
+          "id": "",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $('Telegram Inbound').item.json.callback_query.message.chat.id }}",
+        "text": "=❌ Transaction {{ $('Delete Transaction (SQL)').item.json.id }} Deleted",
+        "additionalFields": {
+          "appendAttribution": false
+        }
+      },
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        352,
+        -16
+      ],
+      "id": "291b29c5-faf8-41b7-9498-f2e56e1747ee",
+      "name": "Send Deleted Confirmation",
+      "executeOnce": true,
+      "credentials": {
+        "telegramApi": {
+          "id": "",
+          "name": "Tracker Expense"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $('Telegram Inbound').item.json.message.chat.id }}",
+        "text": "=Processing Input, Please Wait",
+        "additionalFields": {
+          "appendAttribution": false
+        }
+      },
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        352,
+        176
+      ],
+      "id": "22f104d4-f9df-43ac-90ea-1bba2fc916a5",
+      "name": "Send Processing Notice",
+      "executeOnce": true,
+      "credentials": {
+        "telegramApi": {
+          "id": "",
+          "name": "Tracker Expense"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "resource": "callback",
+        "queryId": "={{ $('Telegram Inbound').item.json.callback_query.id }}",
+        "additionalFields": {}
+      },
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        128,
+        -16
+      ],
+      "id": "7e609da3-4a3e-4972-9ff7-cbf33b4f2b62",
+      "name": "Acknowledge Callback",
+      "executeOnce": true,
+      "credentials": {
+        "telegramApi": {
+          "id": "",
+          "name": "Tracker Expense"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "value": "cO9JsXMVtrUownTi",
+          "mode": "list",
+          "cachedResultUrl": "/workflow/cO9JsXMVtrUownTi",
+          "cachedResultName": "Sub-Query"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {},
+          "matchingColumns": [],
+          "schema": [],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": true
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.3,
+      "position": [
+        576,
+        368
+      ],
+      "id": "ce0e6120-54c8-48af-9503-3f4d1bf9e606",
+      "name": "Run Sub-Query"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "08abf0e9-ff37-42d5-9185-015281d617ac",
+              "name": "data",
+              "value": "={{ $('Telegram Inbound').item.json.message.text }}",
+              "type": "string"
+            },
+            {
+              "id": "9f12aa7d-dc2d-4d76-9feb-478c824d102e",
+              "name": "message",
+              "value": "={{ $('Telegram Inbound').item.json.message }}",
+              "type": "object"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.5,
+      "position": [
+        352,
+        368
+      ],
+      "id": "dd5f6b7a-d764-4bed-b04c-595cbccae473",
+      "name": "Prepare Query Data"
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $('Telegram Inbound').item.json.message.chat.id }}",
+        "text": "=<b>🚀 Quick Start Guide</b>\n\nHere is how you can use this bot to manage and track your expenses:\n\n<b>1️⃣ Log an Expense (Receipt Scan)</b>\n• Simply take a photo of your receipt or bill and send it here.\n• The AI will automatically extract the <b>Date</b>, <b>Merchant</b>, <b>Category</b>, <b>Total Amount</b>, and <b>Line Items</b>.\n• You will have a quick <b>🗑️ Delete Entry</b> button attached to undo any accidental uploads.\n\n<b>2️⃣ Query Your Spending</b>\nAsk questions in plain text anytime! For example:\n• <i>\"How much did I spend on Food & Beverage this month?\"</i>\n• <i>\"Show me my transactions this week.\"</i>\n• <i>\"What was my biggest expense recently?\"</i>\n• <i>\"Total spending in August 2026.\"</i>\n\n<b>3️⃣ Tips for Best Results</b>\n• Ensure receipts are well-lit and the totals are clearly visible.\n• All amounts are tracked and formatted automatically in Rupiah (Rp).\n\n<i>Ready to test it? Send your first receipt photo or ask a spending question!</i>",
+        "additionalFields": {
+          "appendAttribution": false,
+          "parse_mode": "HTML"
+        }
+      },
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        128,
+        -208
+      ],
+      "id": "0854e610-df2a-411c-869a-89924f1c2f5b",
+      "name": "Send Quick Start Guide",
+      "executeOnce": true,
+      "credentials": {
+        "telegramApi": {
+          "id": "",
+          "name": "Tracker Expense"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "6ac4475c-2471-4ae6-acd6-ca96d96b7457",
+              "leftValue": "={{ $('Telegram Inbound').item.binary.data }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "exists",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "looseTypeValidation": true,
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        576,
+        176
+      ],
+      "id": "2526a82e-c06f-413a-87fa-ec28534860ed",
+      "name": "Has Photo?"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "9f12aa7d-dc2d-4d76-9feb-478c824d102e",
+              "name": "message",
+              "value": "={{ $('Telegram Inbound').item.json.message }}",
+              "type": "object"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.5,
+      "position": [
+        800,
+        272
+      ],
+      "id": "85211e88-dac9-40a4-b593-2239b19c559f",
+      "name": "Prepare Manual Data"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Route Intent": {
+      "main": [
+        [
+          {
+            "node": "Send Processing Notice",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Prepare Query Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Classify Intent (Gemini)": {
+      "main": [
+        [
+          {
+            "node": "Route Intent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Telegram Inbound": {
+      "main": [
+        [
+          {
+            "node": "Route Callback & Commands",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Run Sub-Tracker": {
+      "main": [
+        []
+      ]
+    },
+    "Prepare Receipt Data": {
+      "main": [
+        [
+          {
+            "node": "Run Sub-Tracker",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Route Callback & Commands": {
+      "main": [
+        [
+          {
+            "node": "Send Welcome",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Delete Transaction (SQL)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Classify Intent (Gemini)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Delete Transaction (SQL)": {
+      "main": [
+        [
+          {
+            "node": "Acknowledge Callback",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Processing Notice": {
+      "main": [
+        [
+          {
+            "node": "Has Photo?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Acknowledge Callback": {
+      "main": [
+        [
+          {
+            "node": "Send Deleted Confirmation",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Query Data": {
+      "main": [
+        [
+          {
+            "node": "Run Sub-Query",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Welcome": {
+      "main": [
+        [
+          {
+            "node": "Send Quick Start Guide",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Has Photo?": {
+      "main": [
+        [
+          {
+            "node": "Prepare Receipt Data",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Prepare Manual Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Manual Data": {
+      "main": [
+        [
+          {
+            "node": "Run Sub-Tracker",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": true,
+    "timeSavedMode": "fixed",
+    "callerPolicy": "workflowsFromSameOwner",
+    "errorWorkflow": "aO8GSOrgJ8kXQj7T"
+  },
+  "versionId": "b789bdc4-f5d1-4a85-ba1d-b8d33fe311f5",
+  "meta": {},
+  "nodeGroups": [],
+  "id": "WZBYAIDugu5K6EYN",
+  "tags": []
+}

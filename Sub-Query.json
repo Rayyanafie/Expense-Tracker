@@ -1,0 +1,254 @@
+{
+  "name": "Sub-Query",
+  "nodes": [
+    {
+      "parameters": {
+        "inputSource": "passthrough",
+        "returnOutput": "allRuns"
+      },
+      "id": "c055762a-8fe7-4141-a639-df2372f30060",
+      "typeVersion": 1.1,
+      "name": "Sub-Query Entry",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "position": [
+        272,
+        416
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// 1. Extract the text from the nested Gemini response structure\nconst geminiOutput = $input.first().json;\nlet sql = (\n  geminiOutput.content?.parts?.[0]?.text || \n  geminiOutput.text || \n  ''\n).replace(/```sql|```/gi, '').trim();\n\n// 2. Validate read-only SELECT intent\nif (!/^SELECT\\b/i.test(sql) || /;\\s*(DROP|DELETE|UPDATE|INSERT|ALTER|TRUNCATE)/i.test(sql)) {\n  throw new Error(\"Only SELECT queries are allowed.\");\n}\n\n// 3. Get user ID using .first()\nconst userId = $('Sub-Query Entry').first().json.message.from.id;\n\n// 4. Inject dynamic user isolation view\nconst executableSql = `\n  WITH my_expenses AS (\n    SELECT * FROM transactions WHERE telegram_id = ${userId}\n  )\n  ${sql}\n`;\n\nreturn [{ json: { sql: executableSql } }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        848,
+        416
+      ],
+      "id": "c630a17d-57f4-4392-87ef-e0a8371ddb50",
+      "name": "Guard & Scope SQL",
+      "alwaysOutputData": false,
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "{{ $json.sql }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.7,
+      "position": [
+        1072,
+        336
+      ],
+      "id": "c52b82f1-9c0e-4217-92ee-cb3bf88c337c",
+      "name": "Run Query (Postgres)",
+      "credentials": {
+        "postgres": {
+          "id": "",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "modelId": {
+          "__rl": true,
+          "value": "models/gemini-3.1-flash-lite",
+          "mode": "list",
+          "cachedResultName": "models/gemini-3.1-flash-lite"
+        },
+        "messages": {
+          "values": [
+            {
+              "content": "=You are a PostgreSQL expert for an expense tracker in Indonesia.\nToday's Date: {{ $now.toISODate() }}\n\nCRITICAL RULE: You only have access to a view called \"my_expenses\". \nYou MUST ONLY use the following columns. Do NOT invent or query any other columns (like 'notes'):\n\nAvailable Columns:\n- id (integer)\n- date (date)\n- merchant (text)\n- category (text)\n- total_amount (integer)\n- line_items (jsonb)\n\nQuery Guidelines:\n1. Understand intent & synonyms: If a user asks for general terms like \"makan\" or \"bensin\", check the corresponding category (e.g., 'Food & Beverage', 'Transportation') AND search for related specific items/brands.\n2. Searching JSON: To search inside the line_items column, you MUST cast it to text using the ::text operator (e.g., line_items::text ILIKE '%pertamax%' OR line_items::text ILIKE '%bensin%').\n3. ONLY write SELECT statements. Return ONLY the raw SQL query string without markdown or backticks.\n\nUser Question: \"{{ $('Sub-Query Entry').item.json.message.text }}\""
+            }
+          ]
+        },
+        "builtInTools": {},
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.googleGemini",
+      "typeVersion": 1.2,
+      "position": [
+        496,
+        416
+      ],
+      "id": "d04d8e10-b48d-4d26-85f2-fff9b11d0f7a",
+      "name": "Generate SQL (Gemini)",
+      "credentials": {
+        "googlePalmApi": {
+          "id": "",
+          "name": "Google Gemini(PaLM) Api account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "chatId": "000000000",
+        "text": "=🔵 Event: Query Processed\n• Workflow: Query Analytics\n• Execution ID: {{ $execution.id }}",
+        "additionalFields": {
+          "appendAttribution": false
+        }
+      },
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        1872,
+        416
+      ],
+      "id": "a29493e0-8438-4ba0-a6a8-15b38a548088",
+      "name": "Send Log to Admin",
+      "credentials": {
+        "telegramApi": {
+          "id": "",
+          "name": "Track Expense Log"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $('Sub-Query Entry').item.json.message.chat.id }}",
+        "text": "={{ $json.content.parts[0].text }}",
+        "additionalFields": {
+          "appendAttribution": false
+        }
+      },
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        1648,
+        416
+      ],
+      "id": "4f05f7a4-82f5-4fb4-81e4-bdd267205bc6",
+      "name": "Send Answer",
+      "credentials": {
+        "telegramApi": {
+          "id": "",
+          "name": "Tracker Expense"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "modelId": {
+          "__rl": true,
+          "value": "models/gemini-3.1-flash-lite",
+          "mode": "list",
+          "cachedResultName": "models/gemini-3.1-flash-lite"
+        },
+        "messages": {
+          "values": [
+            {
+              "content": "=You are a friendly personal expense assistant. Answer the user's question clearly using the provided database results.\n\nUser Question: \"{{ $('Sub-Query Entry').first().json.message.text }}\"\nDatabase Results: {{ JSON.stringify($json) }}\n\nGuidelines:\n- Format currency amounts into Rupiah (e.g., Rp 38.000).\n- If the result contains multiple rows, present them with clean bullet points and dates.\n- If the result is a SUM or total, state the total clearly.\n- If the database result is empty or null, inform the user nicely that no matching expenses were found.\n\nReturn plain text only. Do not use any markdown formatting, asterisks, or HTML tags."
+            }
+          ]
+        },
+        "builtInTools": {},
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.googleGemini",
+      "typeVersion": 1.2,
+      "position": [
+        1296,
+        416
+      ],
+      "id": "666e5d5f-0404-417d-a4f8-baf43e87311a",
+      "name": "Format Answer (Gemini)",
+      "credentials": {
+        "googlePalmApi": {
+          "id": "",
+          "name": "Google Gemini(PaLM) Api account"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Sub-Query Entry": {
+      "main": [
+        [
+          {
+            "node": "Generate SQL (Gemini)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Guard & Scope SQL": {
+      "main": [
+        [
+          {
+            "node": "Run Query (Postgres)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Format Answer (Gemini)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Run Query (Postgres)": {
+      "main": [
+        [
+          {
+            "node": "Format Answer (Gemini)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generate SQL (Gemini)": {
+      "main": [
+        [
+          {
+            "node": "Guard & Scope SQL",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Answer": {
+      "main": [
+        [
+          {
+            "node": "Send Log to Admin",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Answer (Gemini)": {
+      "main": [
+        [
+          {
+            "node": "Send Answer",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": true
+  },
+  "versionId": "a4015fc4-5207-44a8-8365-2ff571a65514",
+  "meta": {},
+  "nodeGroups": [],
+  "id": "cO9JsXMVtrUownTi",
+  "tags": []
+}

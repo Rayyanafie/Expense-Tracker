@@ -1,0 +1,66 @@
+{
+  "name": "Tracker Expense Log",
+  "nodes": [
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.errorTrigger",
+      "typeVersion": 1,
+      "position": [
+        0,
+        0
+      ],
+      "id": "9cfbb319-0557-45d6-a27e-9cb6d4d7593c",
+      "name": "Error Trigger"
+    },
+    {
+      "parameters": {
+        "chatId": "000000000",
+        "text": "=🔴 Event: Workflow Error\n• Workflow: {{ $json.workflow.name }}\n• Node: {{ $json.execution.lastNodeExecuted }}\n• Error: {{ $json.execution.error.message }}\n• Execution ID: {{ $json.execution.id }}",
+        "additionalFields": {
+          "appendAttribution": false
+        }
+      },
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        224,
+        0
+      ],
+      "id": "9a99de88-716b-45ab-847a-545f72714bfc",
+      "name": "Send Error Alert",
+      "credentials": {
+        "telegramApi": {
+          "id": "",
+          "name": "Track Expense Log"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Error Trigger": {
+      "main": [
+        [
+          {
+            "node": "Send Error Alert",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Error Alert": {
+      "main": [
+        []
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": false
+  },
+  "nodeGroups": [],
+  "tags": []
+}

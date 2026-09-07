@@ -1,0 +1,477 @@
+{
+  "name": "Sub-Tracker",
+  "nodes": [
+    {
+      "parameters": {
+        "inputSource": "passthrough"
+      },
+      "id": "c055762a-8fe7-4141-a639-df2372f30060",
+      "typeVersion": 1.1,
+      "name": "Sub-Tracker Entry",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "position": [
+        -16,
+        320
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "image",
+        "operation": "analyze",
+        "modelId": {
+          "__rl": true,
+          "value": "models/gemini-3.5-flash",
+          "mode": "list",
+          "cachedResultName": "models/gemini-3.5-flash"
+        },
+        "text": "=You are a highly precise financial extraction assistant. Your job is to analyze the provided text or image (receipt/transfer/bill) alongside any user caption, and return a strictly valid JSON object representing the expense data to be stored directly in PostgreSQL.\n\nUSER CAPTION:\n\"{{ $('Sub-Tracker Entry').item.json.message.caption || '' }}\"\n\nCRITICAL EXTRACTION RULES:\n1. Output ONLY a raw JSON object. Do not wrap it in markdown code blocks. Do not include conversational text or markdown formatting.\n2. STRICT CAPTION-ONLY FILTERING (HIGHEST PRIORITY): \n   - If the USER CAPTION is non-empty and names specific items (e.g., \"mujair, kangkung, nasi\"), use the OCR ONLY to look up the exact prices for those named items.\n   - Do NOT include any unmentioned receipt items in \"line_items\".\n   - \"total_amount\" MUST strictly be calculated as the sum of only the items listed in the caption. Do not use the grand total written on the receipt.\n   - If the USER CAPTION is empty or says \"None provided\", only then extract all line items and use the total from the receipt.\n3. Remove all currency symbols, commas, and dots from monetary values (e.g., \"Rp 35.000\" becomes 35000). All amounts and item prices MUST be positive integers.\n4. If the year is not visible on a receipt, assume the current year: 2026.\n5. If the time is not visible, return null for the \"time\" field.\n6. \"line_items\" MUST be an array of objects. Extract each item with its specific name and individual price.\n\nJSON SCHEMA:\n{\n  \"date\": \"YYYY-MM-DD\",\n  \"time\": \"HH:MM:SS\" or null,\n  \"total_amount\": <integer>,\n  \"merchant\": \"<string, name of merchant/person or 'Unknown'>\",\n  \"category\": \"<string, must be exactly ONE from Allowed Categories>\",\n  \"line_items\": [\n    {\n      \"name\": \"<string, specific item name>\",\n      \"price\": <integer, item price>\n    }\n  ],\n  \"notes\": \"<string, brief summary or context from caption, or null>\"\n}\n\nALLOWED CATEGORIES:\n- Food & Beverage\n- Transportation\n- Shopping\n- Subscriptions\n- Health & Personal Care\n- Utilities & Bills\n- Miscellaneous",
+        "inputType": "binary",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.googleGemini",
+      "typeVersion": 1.2,
+      "position": [
+        384,
+        224
+      ],
+      "id": "37cd2b48-9ed4-4b91-a0bc-6871bcf88926",
+      "name": "Extract Receipt (Gemini Vision)",
+      "retryOnFail": true,
+      "waitBetweenTries": 5000,
+      "credentials": {
+        "googlePalmApi": {
+          "id": "",
+          "name": "Google Gemini(PaLM) Api account"
+        }
+      },
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "f35cac7c-f5ac-428f-8010-0bac1f0ad0e3",
+              "name": "parsed_text",
+              "value": "={{ JSON.parse($json.content.parts[0].text) }}",
+              "type": "object"
+            }
+          ]
+        },
+        "includeOtherFields": true,
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.5,
+      "position": [
+        656,
+        352
+      ],
+      "id": "45c0d79c-e8e7-4128-a3a2-7adf90459704",
+      "name": "Parse Gemini JSON"
+    },
+    {
+      "parameters": {
+        "schema": {
+          "__rl": true,
+          "value": "public",
+          "mode": "list",
+          "cachedResultName": "public"
+        },
+        "table": {
+          "__rl": true,
+          "value": "users",
+          "mode": "list",
+          "cachedResultName": "users"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "telegram_id": "={{ $('Sub-Tracker Entry').item.json.message.from.id }}",
+            "username": "={{ $('Sub-Tracker Entry').item.json.message.from.username }}",
+            "first_name": "={{ $('Sub-Tracker Entry').item.json.message.from.first_name }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "telegram_id",
+              "displayName": "telegram_id",
+              "required": true,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "username",
+              "displayName": "username",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "first_name",
+              "displayName": "first_name",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "created_at",
+              "displayName": "created_at",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "dateTime",
+              "canBeUsedToMatch": true,
+              "removed": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {
+          "skipOnConflict": true
+        }
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.7,
+      "position": [
+        832,
+        352
+      ],
+      "id": "dada0dba-977f-4302-a6d0-ae2a7e9a7742",
+      "name": "Upsert User",
+      "credentials": {
+        "postgres": {
+          "id": "",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO transactions (\n  telegram_id,\n  date,\n  time,\n  total_amount,\n  merchant,\n  category,\n  line_items\n)\nVALUES (\n  {{ $('Sub-Tracker Entry').item.json.message.from.id }},\n  '{{ $('Parse Gemini JSON').item.json.parsed_text.date }}',\n  {{ $('Parse Gemini JSON').item.json.parsed_text.time ? `'${$('Parse Gemini JSON').item.json.parsed_text.time}'` : 'NULL' }},\n  {{ $('Parse Gemini JSON').item.json.parsed_text.total_amount }},\n  '{{ $('Parse Gemini JSON').item.json.parsed_text.merchant.replace(/'/g, \"''\") }}',\n  '{{ $('Parse Gemini JSON').item.json.parsed_text.category }}',\n  '{{ JSON.stringify($('Parse Gemini JSON').item.json.parsed_text.line_items).replace(/'/g, \"''\") }}'::jsonb\n)\nRETURNING id, total_amount, category, merchant, date;",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.7,
+      "position": [
+        1008,
+        352
+      ],
+      "id": "7b706adc-998a-48c9-9e03-6b3a41faf128",
+      "name": "Insert Transaction (SQL)",
+      "credentials": {
+        "postgres": {
+          "id": "",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "amount": 3,
+        "unit": "minutes"
+      },
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        1584,
+        352
+      ],
+      "id": "95ed1787-14fb-4a23-95ba-d5bc297f3d9f",
+      "name": "Wait 3 min (Button Expiry)"
+    },
+    {
+      "parameters": {
+        "modelId": {
+          "__rl": true,
+          "value": "models/gemini-3.5-flash",
+          "mode": "list",
+          "cachedResultName": "models/gemini-3.5-flash"
+        },
+        "messages": {
+          "values": [
+            {
+              "content": "=You are an expert data extraction AI for an expense tracker.\nYour task is to parse a short manual text entry and extract the expense details into a strict JSON format.\n\nToday's Date: {{ $now.toISODate() }}\nCurrent Time: {{ $now.toTimeString() }}\n\nAnalyze the user's input and map it to the following JSON structure. \nCRITICAL: You MUST output ONLY valid JSON. No markdown, no backticks, no explanations.\n\n{\n  \"date\": \"YYYY-MM-DD\",\n  \"time\": \"HH:MM:SS\",\n  \"merchant\": \"String (Infer from text if possible, e.g., 'Gojek', 'Pertamina', or 'Unknown' if not stated)\",\n  \"category\": \"String (MUST be exactly one from the Allowed Categories list below)\",\n  \"total_amount\": Integer (Strip all currency symbols. Parse abbreviations: '35k' = 35000, '50rb' = 50000),\n  \"line_items\": [\n    {\n      \"name\": \"String\",\n      \"qty\": 1,\n      \"price\": Integer\n    }\n  ]\n}\n\nALLOWED CATEGORIES:\n- Food & Beverage\n- Transportation\n- Shopping\n- Subscriptions\n- Health & Personal Care\n- Utilities & Bills\n- Miscellaneous\n\nRULES:\n1. If the date or time is not explicitly mentioned in the text, use Today's Date and Current Time.\n2. If multiple items are mentioned, create an object for each in the line_items array. If only a total is given, create one generic line item matching the text.\n\nUser Input: \"{{ $('Sub-Tracker Entry').item.json.message.text }}\""
+            }
+          ]
+        },
+        "builtInTools": {},
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.googleGemini",
+      "typeVersion": 1.2,
+      "position": [
+        320,
+        432
+      ],
+      "id": "d8c22d1d-8127-4383-a362-0843c10360b2",
+      "name": "Parse Manual Entry (Gemini)",
+      "retryOnFail": true,
+      "waitBetweenTries": 5000,
+      "credentials": {
+        "googlePalmApi": {
+          "id": "",
+          "name": "Google Gemini(PaLM) Api account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "ca894415-5cd4-49ab-8f0b-79c37d35d92f",
+              "leftValue": "={{ $('Sub-Tracker Entry').item.binary.data }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "exists",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        144,
+        320
+      ],
+      "id": "ed2b337e-02c8-4d51-86d1-50a7db0a1611",
+      "name": "Has Photo?"
+    },
+    {
+      "parameters": {
+        "chatId": "000000000",
+        "text": "=🟢 Event: Expense Logged • Workflow: Tracker Expense • Execution ID: {{ $execution.id }}",
+        "additionalFields": {
+          "appendAttribution": false
+        }
+      },
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        1392,
+        160
+      ],
+      "id": "b625572b-ef12-4868-a67a-b50f2ff3af36",
+      "name": "Send Log to Admin",
+      "credentials": {
+        "telegramApi": {
+          "id": "",
+          "name": "Track Expense Log"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $('Sub-Tracker Entry').item.json.message.chat.id }}",
+        "text": "={{ `✅ Transaction Recorded! (ID: #${$json.id})\n📅 Date: ${$json.date}\n🏢 Merchant: ${$json.merchant}\n🏷️ Category: ${$json.category}\n💰 Total: Rp ${Number($json.total_amount).toLocaleString('id-ID')}\n📦 Items:\n` + $('Parse Gemini JSON').item.json.parsed_text.line_items.map(item => `• ${item.name}: Rp ${Number(item.price).toLocaleString('id-ID')}`).join('\\n')\n}}",
+        "replyMarkup": "inlineKeyboard",
+        "inlineKeyboard": {
+          "rows": [
+            {
+              "row": {
+                "buttons": [
+                  {
+                    "text": "🗑️ Delete Entry",
+                    "additionalFields": {
+                      "callback_data": "=delete_{{ $json.id }}"
+                    }
+                  }
+                ]
+              }
+            }
+          ]
+        },
+        "additionalFields": {
+          "appendAttribution": false
+        }
+      },
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        1200,
+        352
+      ],
+      "id": "1987ab6e-e40b-4ca4-89eb-149bdaf952cd",
+      "name": "Send Confirmation + Delete Button",
+      "credentials": {
+        "telegramApi": {
+          "id": "",
+          "name": "Tracker Expense"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "editMessageText",
+        "chatId": "={{ $('Send Confirmation + Delete Button').item.json.result.chat.id }}",
+        "messageId": "={{ $('Send Confirmation + Delete Button').item.json.result.message_id }}",
+        "text": "={{ $('Send Confirmation + Delete Button').item.json.result.text }}",
+        "additionalFields": {}
+      },
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        1760,
+        352
+      ],
+      "id": "59b71b7a-8865-4038-85e1-a2178b0a0417",
+      "name": "Strip Delete Button",
+      "credentials": {
+        "telegramApi": {
+          "id": "",
+          "name": "Tracker Expense"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Sub-Tracker Entry": {
+      "main": [
+        [
+          {
+            "node": "Has Photo?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Receipt (Gemini Vision)": {
+      "main": [
+        [
+          {
+            "node": "Parse Gemini JSON",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Gemini JSON": {
+      "main": [
+        [
+          {
+            "node": "Upsert User",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Upsert User": {
+      "main": [
+        [
+          {
+            "node": "Insert Transaction (SQL)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Insert Transaction (SQL)": {
+      "main": [
+        [
+          {
+            "node": "Send Confirmation + Delete Button",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait 3 min (Button Expiry)": {
+      "main": [
+        [
+          {
+            "node": "Strip Delete Button",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Manual Entry (Gemini)": {
+      "main": [
+        [
+          {
+            "node": "Parse Gemini JSON",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Has Photo?": {
+      "main": [
+        [
+          {
+            "node": "Extract Receipt (Gemini Vision)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Parse Manual Entry (Gemini)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Log to Admin": {
+      "main": [
+        []
+      ]
+    },
+    "Send Confirmation + Delete Button": {
+      "main": [
+        [
+          {
+            "node": "Send Log to Admin",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Wait 3 min (Button Expiry)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": true
+  },
+  "versionId": "bf07954f-4863-4854-a4ca-88a03c0385d7",
+  "meta": {},
+  "nodeGroups": [],
+  "id": "LT0bhBz0hvAxB0cq",
+  "tags": []
+}
